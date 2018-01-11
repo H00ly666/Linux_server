@@ -22,6 +22,7 @@ static int pipefd[2];
 static sort_timer_lst timer_lst;
 static int epollfd = 0;
 
+/* 将套接字设置为非阻塞 */
 int setnonblocking( int fd )
 {
     int old_option = fcntl( fd, F_GETFL );
@@ -29,7 +30,7 @@ int setnonblocking( int fd )
     fcntl( fd, F_SETFL, new_option );
     return old_option;
 }
-
+/*添加套接字*/
 void addfd( int epollfd, int fd )
 {
     epoll_event event;
@@ -38,7 +39,7 @@ void addfd( int epollfd, int fd )
     epoll_ctl( epollfd, EPOLL_CTL_ADD, fd, &event );
     setnonblocking( fd );
 }
-
+/*信号处理函数*/
 void sig_handler( int sig )
 {
     int save_errno = errno;
@@ -46,7 +47,7 @@ void sig_handler( int sig )
     send( pipefd[1], ( char* )&msg, 1, 0 );
     errno = save_errno;
 }
-
+/*添加信号*/
 void addsig( int sig )
 {
     struct sigaction sa;
@@ -62,7 +63,7 @@ void timer_handler()
     timer_lst.tick();
     alarm( TIMESLOT );
 }
-
+/*定时器回调函数 会将套接字删除掉*/
 void cb_func( client_data* user_data )
 {
     epoll_ctl( epollfd, EPOLL_CTL_DEL, user_data->sockfd, 0 );
@@ -101,7 +102,7 @@ int main( int argc, char* argv[] )
     int epollfd = epoll_create( 5 );
     assert( epollfd != -1 );
     addfd( epollfd, listenfd );
-
+    /* 这个还是统一事件源的思路 创建了一罐接收并处理信号的管道 */
     ret = socketpair( PF_UNIX, SOCK_STREAM, 0, pipefd );
     assert( ret != -1 );
     setnonblocking( pipefd[1] );
@@ -128,6 +129,7 @@ int main( int argc, char* argv[] )
         for ( int i = 0; i < number; i++ )
         {
             int sockfd = events[i].data.fd;
+            /* 处理连接请求 */
             if( sockfd == listenfd )
             {
                 struct sockaddr_in client_address;
@@ -144,6 +146,7 @@ int main( int argc, char* argv[] )
                 users[connfd].timer = timer;
                 timer_lst.add_timer( timer );
             }
+            /* 是从信号管道来的消息 并且可读 */
             else if( ( sockfd == pipefd[0] ) && ( events[i].events & EPOLLIN ) )
             {
                 int sig;
@@ -177,6 +180,7 @@ int main( int argc, char* argv[] )
                     }
                 }
             }
+            /* 从客户端收到消息 */
             else if(  events[i].events & EPOLLIN )
             {
                 memset( users[sockfd].buf, '\0', BUFFER_SIZE );
