@@ -33,7 +33,8 @@ int timeout_connect( const char* ip, int port, int time )
      * 我突然想到的办法是让服务器在accept之前阻塞一会儿
      * 有没有服务器命令可以帮我完成这个事情
      * 好吧 上述方式是不行的额
-     *
+     * 
+     * 原来是可以的啊
      */
     ret = connect( sockfd, ( struct sockaddr* )&address, sizeof( address ) );
     if ( ret == -1 )
