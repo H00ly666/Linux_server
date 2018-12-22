@@ -16,37 +16,42 @@ struct client_data
     char buf[ BUFFER_SIZE ];
     heap_timer* timer;
 };
-
+/*定时器类*/
 class heap_timer
 {
 public:
     heap_timer( int delay )
     {
+        /* 延迟处理 */
         expire = time( NULL ) + delay;
     }
 
 public:
-   time_t expire;
-   void (*cb_func)( client_data* );
-   client_data* user_data;
+    /* 定时器生效的绝对时间 */
+    time_t expire;
+    /*定时器回掉函数*/
+    void (*cb_func)( client_data* );
+    client_data* user_data;
 };
-
+/*时间堆类*/
 class time_heap
 {
 public:
+    /*构造函数之一 初始化一个大小为cap 的空堆*/
     time_heap( int cap ) throw ( std::exception )
         : capacity( cap ), cur_size( 0 )
     {
-	array = new heap_timer* [capacity];
-	if ( ! array )
-	{
-            throw std::exception();
-	}
-        for( int i = 0; i < capacity; ++i )
+	    array = new heap_timer* [capacity];
+	    if ( ! array )
+	    {
+                throw std::exception();
+	    }
+            for( int i = 0; i < capacity; ++i )
         {
             array[i] = NULL;
         }
     }
+    /*用已有的数组来初始化堆*/
     time_heap( heap_timer** init_array, int size, int capacity ) throw ( std::exception )
         : cur_size( size ), capacity( capacity )
     {
@@ -63,6 +68,7 @@ public:
         {
             array[i] = NULL;
         }
+        /* 初始化堆数组 */
         if ( size != 0 )
         {
             for ( int i =  0; i < size; ++i )
@@ -71,10 +77,12 @@ public:
             }
             for ( int i = (cur_size-1)/2; i >=0; --i )
             {
+                /* 执行下虑操作 */
                 percolate_down( i );
             }
         }
     }
+    /*销毁时间堆*/
     ~time_heap()
     {
         for ( int i =  0; i < cur_size; ++i )
@@ -85,18 +93,21 @@ public:
     }
 
 public:
+    /*添加目标定时器timer*/
     void add_timer( heap_timer* timer ) throw ( std::exception )
     {
         if( !timer )
         {
             return;
         }
+        /*容量不够 重新来分配堆数组  既然使用了c++为什么不使用vector来避免这个问题*/
         if( cur_size >= capacity )
         {
             resize();
         }
         int hole = cur_size++;
         int parent = 0;
+        /* 从下进行上虑 */
         for( ; hole > 0; hole=parent )
         {
             parent = (hole-1)/2;
@@ -108,6 +119,7 @@ public:
         }
         array[hole] = timer;
     }
+    /* 删除目标定时器 */
     void del_timer( heap_timer* timer )
     {
         if( !timer )
@@ -115,8 +127,14 @@ public:
             return;
         }
         // lazy delelte
+        /*这里比较有意思 只将目标定时器的回调函数置为空
+        * 即所谓的延时销毁
+        * 这将真正节省删除该定时器造成的开销
+        * 但这样做容易使数组膨胀*/
         timer->cb_func = NULL;
     }
+    
+    /* 获得堆顶部的定时器 */
     heap_timer* top() const
     {
         if ( empty() )
@@ -125,6 +143,7 @@ public:
         }
         return array[0];
     }
+    /*删除堆顶部的定时器*/
     void pop_timer()
     {
         if( empty() )
@@ -134,10 +153,14 @@ public:
         if( array[0] )
         {
             delete array[0];
+            /*将原来的堆顶元素替换为堆数组中最后一个元素*/
             array[0] = array[--cur_size];
+            /*对新的堆顶元素进行下虑操作*/
             percolate_down( 0 );
         }
     }
+
+    /*心博函数*/
     void tick()
     {
         heap_timer* tmp = array[0];
@@ -185,6 +208,7 @@ private:
         }
         array[hole] = temp;
     }
+    /* 将数组容量扩大一倍 */
     void resize() throw ( std::exception )
     {
         heap_timer** temp = new heap_timer* [2*capacity];
@@ -206,8 +230,11 @@ private:
     }
 
 private:
+    /*动态数组 这里采用 vector容器是不是更好一些呢 */
     heap_timer** array;
+    /*最小堆数组的容量*/
     int capacity;
+    /*堆数组当前包含元素的个数*/
     int cur_size;
 };
 
