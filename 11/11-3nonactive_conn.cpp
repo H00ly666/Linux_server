@@ -30,6 +30,7 @@ int setnonblocking( int fd )
     fcntl( fd, F_SETFL, new_option );
     return old_option;
 }
+
 /*添加套接字*/
 void addfd( int epollfd, int fd )
 {
@@ -39,19 +40,23 @@ void addfd( int epollfd, int fd )
     epoll_ctl( epollfd, EPOLL_CTL_ADD, fd, &event );
     setnonblocking( fd );
 }
+
 /*信号处理函数*/
 void sig_handler( int sig )
 {
     int save_errno = errno;
     int msg = sig;
+    /*将信号量值写到写段*/
     send( pipefd[1], ( char* )&msg, 1, 0 );
     errno = save_errno;
 }
+
 /*添加信号*/
 void addsig( int sig )
 {
     struct sigaction sa;
     memset( &sa, '\0', sizeof( sa ) );
+    /*函数指针赋值*/
     sa.sa_handler = sig_handler;
     sa.sa_flags |= SA_RESTART;
     sigfillset( &sa.sa_mask );
@@ -115,6 +120,13 @@ int main( int argc, char* argv[] )
 
     client_data* users = new client_data[FD_LIMIT]; 
     bool timeout = false;
+    /* 
+     * alarm也称为闹钟函数，它可以在进程中设置一个定时器，当定时器指定的时间到时，
+     * 它向进程发送SIGALRM信号。可以设置忽略或者不捕获此信号，
+     * 如果采用默认方式其动作是终止调用该alarm函数的进程。
+     * 一个进程只能有一个 指定5秒
+     * 不可重入
+     */
     alarm( TIMESLOT );
 
     while( !stop_server )
@@ -169,11 +181,15 @@ int main( int argc, char* argv[] )
                         {
                             case SIGALRM:
                             {
+                                /*这个是系统定时任务 放到最后处理 也就是说在五秒种之内
+                                *  服务器没什么变化就信号产生*/
+                                printf("五秒到辣\n");
                                 timeout = true;
                                 break;
                             }
                             case SIGTERM:
                             {
+                                printf("听说有人想让我退出\n");
                                 stop_server = true;
                             }
                         }
@@ -208,7 +224,8 @@ int main( int argc, char* argv[] )
                 }
                 else
                 {
-                    //send( sockfd, users[sockfd].buf, BUFFER_SIZE-1, 0 );
+                    // send( sockfd, users[sockfd].buf, BUFFER_SIZE-1, 0 );
+                    /* 客户端有数据 此为活动链接 所有延迟此客户端的被关闭时间 */
                     if( timer )
                     {
                         time_t cur = time( NULL );
@@ -226,7 +243,7 @@ int main( int argc, char* argv[] )
 
         if( timeout )
         {
-            timer_handler();
+            //timer_handler();
             timeout = false;
         }
     }
