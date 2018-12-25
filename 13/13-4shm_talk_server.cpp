@@ -19,6 +19,8 @@
 #define BUFFER_SIZE 1024
 #define FD_LIMIT 65535
 #define MAX_EVENT_NUMBER 1024
+/*这里需要优化　开这么大的数组　但是只允许开五个客户端　感觉非常没有必要
+* 可能是为了能够更快的根据进程号找编号吧*/
 #define PROCESS_LIMIT 65536
 
 struct client_data
@@ -94,15 +96,25 @@ void child_term_handler( int sig )
     stop_child = true;
 }
 
+/*子进程处理函数
+* 处理方式很灵活　主进程不监听客户端已连接套接字
+* 而是由子进程来监听　并进行收取客户端发来的数据
+*
+* */
 int run_child( int idx, client_data* users, char* share_mem )
 {
     epoll_event events[ MAX_EVENT_NUMBER ];
+    
     int child_epollfd = epoll_create( 5 );
     assert( child_epollfd != -1 );
+    
     int connfd = users[idx].connfd;
     addfd( child_epollfd, connfd );
+    
+    /*写端套接字*/
     int pipefd = users[idx].pipefd[1];
     addfd( child_epollfd, pipefd );
+    
     int ret;
     addsig( SIGTERM, child_term_handler, false );
 
@@ -118,8 +130,12 @@ int run_child( int idx, client_data* users, char* share_mem )
         for ( int i = 0; i < number; i++ )
         {
             int sockfd = events[i].data.fd;
+            
+            /*1.客户端有数据发到本套接字上*/
             if( ( sockfd == connfd ) && ( events[i].events & EPOLLIN ) )
             {
+                printf("/*1.客户端有数据发到本套接字上*/\n");
+                /*存入相应的位置*/
                 memset( share_mem + idx*BUFFER_SIZE, '\0', BUFFER_SIZE );
                 ret = recv( connfd, share_mem + idx*BUFFER_SIZE, BUFFER_SIZE-1, 0 );
                 if( ret < 0 )
@@ -135,11 +151,14 @@ int run_child( int idx, client_data* users, char* share_mem )
                 }
                 else
                 {
+                    /*写进写管道去　通知服务器此客户端的编号*/
                     send( pipefd, ( char* )&idx, sizeof( idx ), 0 );
                 }
             }
+            /*3.主进程发数据过来*/
             else if( ( sockfd == pipefd ) && ( events[i].events & EPOLLIN ) )
             {
+                printf("/*3.主进程发数据过来*/\n");
                 int client = 0;
                 ret = recv( sockfd, ( char* )&client, sizeof( client ), 0 );
                 if( ret < 0 )
@@ -155,6 +174,7 @@ int run_child( int idx, client_data* users, char* share_mem )
                 }
                 else
                 {
+                    /*发送到子进程本客户端上　主进程是收不到的*/
                     send( connfd, share_mem + client * BUFFER_SIZE, BUFFER_SIZE, 0 );
                 }
             }
@@ -199,6 +219,7 @@ int main( int argc, char* argv[] )
 
     user_count = 0;
     users = new client_data [ USER_LIMIT+1 ];
+    
     sub_process = new int [ PROCESS_LIMIT ];
     for( int i = 0; i < PROCESS_LIMIT; ++i )
     {
@@ -208,9 +229,10 @@ int main( int argc, char* argv[] )
     epoll_event events[ MAX_EVENT_NUMBER ];
     epollfd = epoll_create( 5 );
     assert( epollfd != -1 );
+   
     addfd( epollfd, listenfd );
     
-    /*创建管道　接受信号　同一事件源*/
+    /*创建全双工管道　进行*/
     ret = socketpair( PF_UNIX, SOCK_STREAM, 0, sig_pipefd );
     assert( ret != -1 );
     setnonblocking( sig_pipefd[1] );
@@ -237,7 +259,8 @@ int main( int argc, char* argv[] )
     /*MAP_SHARED 在进程间共享这段内存 被映射文件描述符　偏移量 */
     share_mem = (char*)mmap( NULL, USER_LIMIT * BUFFER_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shmfd, 0 );
     assert( share_mem != MAP_FAILED );
-    /*为啥需要立即关掉*/
+    /*为啥需要立即关掉 经过实验*/
+    printf("共享内存块的套接字%d\n",shmfd);
     close( shmfd );
 
     while( !stop_server )
@@ -286,29 +309,38 @@ int main( int argc, char* argv[] )
                     close( connfd );
                     continue;
                 }
-                
+                /*在子进程中*/
                 else if( pid == 0 )
                 {
+                    //首先我觉得这里并没有复制　只是计数加一
+                    //子进程中不需要处理父进程的数据　所以要关闭
                     close( epollfd );
                     close( listenfd );
+                    /* 关闭子进程读端　防止读端产生事件
+                     * 所以子进程主要是往进写 */
                     close( users[user_count].pipefd[0] );
+                    /*子进程有自己的信号处理管道*/
                     close( sig_pipefd[0] );
                     close( sig_pipefd[1] );
                     run_child( user_count, users, share_mem );
                     munmap( (void*)share_mem,  USER_LIMIT * BUFFER_SIZE );
                     exit( 0 );
                 }
-                
+                /*父进程*/
                 else
                 {
                     close( connfd );
+                    /*关闭父进程写端*/
                     close( users[user_count].pipefd[1] );
+                    /*将读端添加至事件集中*/
                     addfd( epollfd, users[user_count].pipefd[0] );
                     users[user_count].pid = pid;
+                    /*这个数组也太大了*/
                     sub_process[pid] = user_count;
                     user_count++;
                 }
             }
+            /*主进程处理信号*/
             else if( ( sockfd == sig_pipefd[0] ) && ( events[i].events & EPOLLIN ) )
             {
                 int sig;
@@ -380,8 +412,10 @@ int main( int argc, char* argv[] )
                     }
                 }
             }
+            /*2.子进程把客户端数据发过来*/
             else if( events[i].events & EPOLLIN )
             {
+                printf("/*2.子进程把客户端数据发过来*/\n");
                 int child = 0;
                 ret = recv( sockfd, ( char* )&child, sizeof( child ), 0 );
                 printf( "read data from child accross pipe\n" );
@@ -395,11 +429,14 @@ int main( int argc, char* argv[] )
                 }
                 else
                 {
+                    /*给每一个客户端发送数据*/
                     for( int j = 0; j < user_count; ++j )
                     {
+                        /*过滤源数据客户端*/
                         if( users[j].pipefd[0] != sockfd )
                         {
                             printf( "send data to child accross pipe\n" );
+                            /*这个应该是全双工的　即可以读又可以写*/
                             send( users[j].pipefd[0], ( char* )&child, sizeof( child ), 0 );
                         }
                     }
