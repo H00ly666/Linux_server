@@ -1,4 +1,4 @@
-#include "http_conn.h"
+#include "./15-4http_conn.h"
 
 const char* ok_200_title = "OK";
 const char* error_400_title = "Bad Request";
@@ -60,6 +60,7 @@ void http_conn::close_conn( bool real_close )
     }
 }
 
+/*init 重载两次*/
 void http_conn::init( int sockfd, const sockaddr_in& addr )
 {
     m_sockfd = sockfd;
@@ -71,7 +72,7 @@ void http_conn::init( int sockfd, const sockaddr_in& addr )
     setsockopt( m_sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof( reuse ) );
     addfd( m_epollfd, sockfd, true );
     m_user_count++;
-
+    /**/
     init();
 }
 
@@ -321,6 +322,9 @@ http_conn::HTTP_CODE http_conn::process_read()
     return NO_REQUEST;
 }
 
+/*当得到一个完整的正确的http请求时 我们就去分析目标文件的属性
+* 如果目标文件存在　对所有用户可读则使用mmap将其映射到内存地址m_file_address处
+* 并告诉调用者读取成功*/
 http_conn::HTTP_CODE http_conn::do_request()
 {
     strcpy( m_real_file, doc_root );
@@ -342,7 +346,11 @@ http_conn::HTTP_CODE http_conn::do_request()
     }
 
     int fd = open( m_real_file, O_RDONLY );
-    m_file_address = ( char* )mmap( 0, m_file_stat.st_size, PROT_READ, MAP_PRIVATE, fd, 0 );
+
+    /*起始地址(默认NULL) 指定内存段长度 内存段的访问权限 控制内存段内容被修改后程序的行为　被映射的文件描述符　从何处开始映射*/
+    m_file_address = ( char* )mmap( NULL, m_file_stat.st_size, PROT_READ, MAP_PRIVATE, fd, 0 );
+    /*此处应该检测是否分配成功*/
+
     close( fd );
     return FILE_REQUEST;
 }

@@ -125,6 +125,7 @@ int main( int argc, char* argv[] )
             {
                 users[sockfd].close_conn();
             }
+            /*有读的数据了　向队列中添加处理任务*/
             else if( events[i].events & EPOLLIN )
             {
                 if( users[sockfd].read() )
@@ -136,6 +137,7 @@ int main( int argc, char* argv[] )
                     users[sockfd].close_conn();
                 }
             }
+            /*这个一会儿学习下*/
             else if( events[i].events & EPOLLOUT )
             {
                 if( !users[sockfd].write() )

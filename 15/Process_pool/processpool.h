@@ -125,7 +125,6 @@ static void sig_handler( int sig )
 {
     int save_errno = errno;
     int msg = sig;
-    /* 这块为啥得转成char* */
     send( sig_pipefd[1], ( char* )&msg, 1, 0 );
     errno = save_errno;
 }
@@ -150,7 +149,6 @@ processpool< T >::processpool( int listenfd, int process_number )
     : m_listenfd( listenfd ), m_process_number( process_number ), m_idx( -1 ), m_stop( false )
 {
     assert( ( process_number > 0 ) && ( process_number <= MAX_PROCESS_NUMBER ) );
-    std::cout  << "ｐｏｏｌ\n"<<std::endl;
     m_sub_process = new process[ process_number ];
     assert( m_sub_process );
 
@@ -191,7 +189,6 @@ void processpool< T >::setup_sig_pipe()
     int ret = socketpair( PF_UNIX, SOCK_STREAM, 0, sig_pipefd );
     assert( ret != -1 );
 
-std::cout<<"ｏｋｋ" << std::endl;
     setnonblocking( sig_pipefd[1] );
     addfd( m_epollfd, sig_pipefd[0] );
 
@@ -271,6 +268,7 @@ void processpool< T >::run_child()
                     
                     /* 模板类T必须实现init方法　以初始化一个客户端连接 
                      * 我们直接使用connfd来索引逻辑处理对象,以提高程序的运行效率 
+                     * 但有一个问题就是有些浪费资源　hash_map获取会更好一些
                      */
                     users[connfd].init( m_epollfd, connfd, client_address );
                 }
@@ -295,22 +293,8 @@ void processpool< T >::run_child()
                     {
                         switch( signals[i] )
                         {
-                            /*子进程不需要处理这个child新号吧
-                            * 做完测试之后发现并不是*/
-
+                            /*子进程不需要处理这个child新号*/
                             case SIGCHLD:
-                            {
-                                pid_t pid;
-                                int stat;
-                                
-                                /*-1代表等待任意一个  stat保存退出状态信息  WNOHANG表明非阻塞式
-                                * 正常退出返回退出子进程的id*/
-                                while ( ( pid = waitpid( -1, &stat, WNOHANG ) ) > 0 )
-                                {
-                                    continue;
-                                }
-                                break;
-                            }
                             case SIGTERM:
                             case SIGINT:
                             {
@@ -395,12 +379,10 @@ void processpool< T >::run_parent()
                 
                 sub_process_counter = (i+1)%m_process_number;
                 
-                /*目前猜测　主进程发送信息通知紫禁城接受连接*/
-                //send( m_sub_process[sub_process_counter++].m_pipefd[0], ( char* )&new_conn, sizeof( new_conn ), 0 );
+                /*主进程发送信息通知紫禁城接受连接*/
                 send( m_sub_process[i].m_pipefd[0], ( char* )&new_conn, sizeof( new_conn ), 0 );
                 
                 printf( "send request to child %d\n", i );
-                //sub_process_counter %= m_process_number;
             }
 
             /*处理父进程接收到的信号*/
@@ -436,7 +418,7 @@ void processpool< T >::run_parent()
                                         }
                                     }
                                 }
-                                /*检查是否又子进程存活*/
+                                /*检查是否有子进程存活*/
                                 m_stop = true;
                                 for( int i = 0; i < m_process_number; ++i )
                                 {
@@ -479,7 +461,6 @@ void processpool< T >::run_parent()
     }
 
     /*由创建者关闭*/
-    //close( m_listenfd );
     close( m_epollfd );
 }
 

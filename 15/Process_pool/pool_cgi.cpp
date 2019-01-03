@@ -13,8 +13,9 @@
 #include <signal.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
-#include "./15-1processpool.h"
 #include <iostream>
+
+#include "processpool.h"
 
 
 class cgi_conn
