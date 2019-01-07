@@ -73,6 +73,7 @@ threadpool< T >::threadpool( int thread_number, int max_requests ) :
     }
 }
 
+/*析构函数　释放那个资源*/
 template< typename T >
 threadpool< T >::~threadpool()
 {
