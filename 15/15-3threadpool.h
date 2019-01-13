@@ -138,7 +138,7 @@ void threadpool< T >::run()
             /*可能为空*/
             continue;
         }
-        /*直行之*/
+        /*执行之*/
         request->process();
     }
 }
