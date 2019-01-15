@@ -1,4 +1,4 @@
-#include "./15-4http_conn.h"
+#include "./http_conn.h"
 
 const char* ok_200_title = "OK";
 const char* error_400_title = "Bad Request";
@@ -9,7 +9,7 @@ const char* error_404_title = "Not Found";
 const char* error_404_form = "The requested file was not found on this server.\n";
 const char* error_500_title = "Internal Error";
 const char* error_500_form = "There was an unusual problem serving the requested file.\n";
-const char* doc_root = "/var/www/html";
+const char* doc_root = "./var/www/html";
 
 int setnonblocking( int fd )
 {
@@ -60,7 +60,7 @@ void http_conn::close_conn( bool real_close )
     }
 }
 
-/*init 重载两次*/
+/*init 重载两次　此函数先进行连接的初始化*/
 void http_conn::init( int sockfd, const sockaddr_in& addr )
 {
     m_sockfd = sockfd;
@@ -72,10 +72,11 @@ void http_conn::init( int sockfd, const sockaddr_in& addr )
     setsockopt( m_sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof( reuse ) );
     addfd( m_epollfd, sockfd, true );
     m_user_count++;
-    /**/
+    /*调用下边的函数　进行状态机的初始化*/
     init();
 }
 
+/*进行状态机的初始化*/
 void http_conn::init()
 {
     m_check_state = CHECK_STATE_REQUESTLINE;
@@ -265,6 +266,7 @@ http_conn::HTTP_CODE http_conn::parse_content( char* text )
     return NO_REQUEST;
 }
 
+/*解析HTTP请求*/
 http_conn::HTTP_CODE http_conn::process_read()
 {
     LINE_STATUS line_status = LINE_OK;
@@ -344,6 +346,7 @@ http_conn::HTTP_CODE http_conn::do_request()
     {
         return BAD_REQUEST;
     }
+    printf("文件%s\n",m_real_file);
 
     int fd = open( m_real_file, O_RDONLY );
 
@@ -381,6 +384,10 @@ bool http_conn::write()
         temp = writev( m_sockfd, m_iv, m_iv_count );
         if ( temp <= -1 )
         {
+            /* 如果TCP写缓冲没有空间　则等待下一轮EPOLLOUT事件
+             * 虽然在此期间服务器无法立即接受到同一客户的下一个请求
+             * 但是这可以保证连接的完整性*/
+
             if( errno == EAGAIN )
             {
                 modfd( m_epollfd, m_sockfd, EPOLLOUT );
@@ -460,6 +467,7 @@ bool http_conn::add_content( const char* content )
     return add_response( "%s", content );
 }
 
+/*填充HTTP应答*/
 bool http_conn::process_write( HTTP_CODE ret )
 {
     switch ( ret )
@@ -539,8 +547,12 @@ bool http_conn::process_write( HTTP_CODE ret )
     return true;
 }
 
+/*由线程池内的工作线程调用　这里是处理http请求的入口*/
 void http_conn::process()
 {
+    //先处理read
+    //
+    //HTTP_CODE 服务处理的请求的可能结果
     HTTP_CODE read_ret = process_read();
     if ( read_ret == NO_REQUEST )
     {

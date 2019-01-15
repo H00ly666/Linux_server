@@ -9,6 +9,7 @@
 
 
 /*线程池类，将它定义为模板类是为了代码复用。模板参数T是任务类*/
+/*今天听到有人说模板类只能放在头文件里*/
 template< typename T >
 class threadpool
 {
@@ -55,16 +56,17 @@ threadpool< T >::threadpool( int thread_number, int max_requests ) :
     {
         throw std::exception();
     }
-    /*创建thread_num个线程　并将他们都设置为脱离线程*/
+    /*创建thread_num个线程　并将他们都设置为脱离线程 ?*/ 
     for ( int i = 0; i < thread_number; ++i )
     {
         printf( "create the %dth thread\n", i );
-        /*关于数据的传法这里比较有意思了 this*/
+        /*关于数据的传法这里比较有意思了 this　这个是将线程池的这个类整体传了进去*/
         if( pthread_create( m_threads + i, NULL, worker, this ) != 0 )
         {
             delete [] m_threads;
             throw std::exception();
         }
+        //脱离线程是什么意思呢
         if( pthread_detach( m_threads[i] ) )
         {
             delete [] m_threads;
@@ -112,12 +114,13 @@ void* threadpool< T >::worker( void* arg )
     return pool;
 }
 
+/*在对列中取任务进行执行*/
 template< typename T >
 void threadpool< T >::run()
 {
     while ( ! m_stop )
     {
-        /*是否有任务需要处理的信号*/
+        /*是否有任务需要处理的信号量*/
         m_queuestat.wait();
         /*枷锁*/
         m_queuelocker.lock();
@@ -127,6 +130,7 @@ void threadpool< T >::run()
             m_queuelocker.unlock();
             continue;
         }
+
         /*取出第一个任务来处理*/
         T* request = m_workqueue.front();
         /*删除第一个*/

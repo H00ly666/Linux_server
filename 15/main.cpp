@@ -62,7 +62,8 @@ int main( int argc, char* argv[] )
     {
         return 1;
     }
-
+    
+    /*预先为每一个连接分配一个http_conn对象*/
     http_conn* users = new http_conn[ MAX_FD ];
     assert( users );
     int user_count = 0;
@@ -119,17 +120,22 @@ int main( int argc, char* argv[] )
                     continue;
                 }
                 
+                /*初始化客户连接 及状态机的初始化*/
                 users[connfd].init( connfd, client_address );
             }
+
+            /*异常*/
             else if( events[i].events & ( EPOLLRDHUP | EPOLLHUP | EPOLLERR ) )
             {
                 users[sockfd].close_conn();
             }
+
             /*有读的数据了　向队列中添加处理任务*/
             else if( events[i].events & EPOLLIN )
             {
                 if( users[sockfd].read() )
                 {
+                    /*向队列中添加客户端类*/
                     pool->append( users + sockfd );
                 }
                 else
@@ -137,7 +143,8 @@ int main( int argc, char* argv[] )
                     users[sockfd].close_conn();
                 }
             }
-            /*这个一会儿学习下*/
+            
+            /*这个一会儿学习下　*/
             else if( events[i].events & EPOLLOUT )
             {
                 if( !users[sockfd].write() )
