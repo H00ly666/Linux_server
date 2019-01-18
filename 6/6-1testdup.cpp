@@ -31,6 +31,7 @@ int main( int argc, char* argv[] )
     int ret = bind( sock, ( struct sockaddr* )&address, sizeof( address ) );
     assert( ret != -1 );
 
+    sleep(100);
     ret = listen( sock, 5 );
     assert( ret != -1 );
 

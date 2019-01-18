@@ -61,7 +61,7 @@ int main( int argc, char* argv[] )
     const char* ip = argv[1];
     int port = atoi( argv[2] );
 
-    int sockfd = timeout_connect( ip, port, 10 );
+    int sockfd = timeout_connect( ip, port, 3);
     if ( sockfd < 0 )
     {
         return 1;
