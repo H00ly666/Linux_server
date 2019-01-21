@@ -70,7 +70,7 @@ public:
                         break;
                     }
                 }
-                //如果没有遇到字符\r \n 就读取更多数据
+                //如果没有遇到字符 \r\n 就读取更多数据
                 if(idx == m_read_idx)
                 {
                     continue;
@@ -98,6 +98,7 @@ public:
                 }
                 else
                 {
+                    //这一块的处理是什么用意
                     close(STDERR_FILENO);
                     dup(m_sockfd);
                     execl(m_buf, m_buf, 0);

@@ -79,6 +79,8 @@ private:
     bool add_linger();
     bool add_blank_line();
 
+    void send_to_mycgi();
+
 public:
     /*所有scoket上的事件都被注册到同一个epoll内核事件表中　所以将其设置为静态的*/
     static int m_epollfd;
@@ -89,6 +91,9 @@ private:
     /*该连接的socket和地址*/
     int m_sockfd;
     sockaddr_in m_address;
+
+    /*初始化cgi*/
+    int cgi = 1;
 
     /**/
     char m_read_buf[ READ_BUFFER_SIZE ];

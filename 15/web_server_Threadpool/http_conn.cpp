@@ -1,4 +1,5 @@
 #include "./http_conn.h"
+#include <unistd.h>
 
 const char* ok_200_title = "OK";
 const char* error_400_title = "Bad Request";
@@ -347,6 +348,13 @@ http_conn::HTTP_CODE http_conn::do_request()
         return BAD_REQUEST;
     }
     printf("文件%s\n",m_real_file);
+    
+    if (cgi == 1)
+    {
+        /* 与my_cgi进行连接　交互数据*/
+        send_to_mycgi();
+    }
+    
 
     int fd = open( m_real_file, O_RDONLY );
 
@@ -356,6 +364,50 @@ http_conn::HTTP_CODE http_conn::do_request()
 
     close( fd );
     return FILE_REQUEST;
+}
+
+/*
+ * 由于本项目侧重于网络方面以及性能的提升
+ * 顾对cgi的交互处理的不是很严格 仅采用　/r/n协议
+ * 但也是基于fastcgi的思想　即通过socket进行数据交互
+ * 详情请参考
+ * http://www.php-internals.com/book/?p=chapt02/02-02-03-fastcgi
+ * 
+ */
+void http_conn::send_to_mycgi()
+{
+    const char* ip = "127.0.0.1";
+    int port = 8888;
+    const char *send_buf = "nihao\r\n";
+
+    struct sockaddr_in server_address;
+    bzero( &server_address, sizeof( server_address ) );
+    server_address.sin_family = AF_INET;
+    inet_pton( AF_INET, ip, &server_address.sin_addr );
+    server_address.sin_port = htons( port );
+
+    int sockfd = socket( PF_INET, SOCK_STREAM, 0 );
+    assert( sockfd >= 0 );
+    if ( connect( sockfd, ( struct sockaddr* )&server_address, sizeof( server_address ) ) < 0 )
+    {
+        printf( "connection failed\n" );
+    }
+    else
+    {
+       // printf( "send oob data out\n" );
+       // const char* oob_data = "abc";
+       // const char* normal_data = "123";
+       // send( sockfd, normal_data, strlen( normal_data ), 0 );
+       // send( sockfd, oob_data, strlen( oob_data ), MSG_OOB );
+       // send( sockfd, normal_data, strlen( normal_data ), 0 );
+        send (sockfd , send_buf, strlen(send_buf), 0);
+    }
+    //memset(send_buf, '\0', sizeof(send_buf));
+ //   read (sockfd, send_buf, sizeof(send_buf));
+
+    close( sockfd );
+    return ;
+
 }
 
 void http_conn::unmap()
