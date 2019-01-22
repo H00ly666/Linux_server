@@ -78,30 +78,48 @@ public:
                 m_buf[ idx-1 ] = '\0';
 
                 char * file_name = m_buf;
+                /*判断客户需要运行的cgi程序是否存在*/
                 if(access(file_name, F_OK) == -1)
                 {
                     removefd(m_epollfd, m_sockfd);
                     break;
                 }
 
+                /*创建子进程来执行cgi程序*/
                 ret = fork();
                 if(ret == -1)
                 {
+                    /*父进程关闭连接就可以了*/
                     removefd(m_epollfd,m_sockfd);
                     break;
                 }
                 //父进程
                 else if(ret > 0)
                 {
+                    /*因为父进程并不处理这件事，子进程会共享m_epollfd*/
                     removefd(m_epollfd,m_sockfd);
                     break;
                 }
                 else
                 {
-                    //这一块的处理是什么用意
-                    close(STDERR_FILENO);
+                    /*子进程将标准输出定向到m_sockfd,并执行CGI程序*/
+                    close(1);
+                    close(2);
+                    /*
+                     * 不继承原有的文件描述符属性　close-on-exec non-blocking
+                     * 返回一个最小的文件描述符与原来具有相同所指
+                     * 已关闭的STDERR_FILENO是１ 所以　execl 本来要发向1 然后就发到了m_socked那里去
+                     */
                     dup(m_sockfd);
-                    execl(m_buf, m_buf, 0);
+                    /*
+                     * execl()用来执行参数path 字符串所代表的文件路径, 
+                     * 接下来的参数代表执行该文件时传递过去的argv(0),argv[1], ..., 
+                     * 最后一个参数必须用空指针(NULL)作结束.
+                     * 示例 execl("/bin/ls", "ls", NULL);
+                     */
+                    
+                   // execl(m_buf, "sl", NULL);
+                    execl(m_buf, "ls", NULL);
                     exit(0);
                 }
             }

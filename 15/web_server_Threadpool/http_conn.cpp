@@ -378,7 +378,7 @@ void http_conn::send_to_mycgi()
 {
     const char* ip = "127.0.0.1";
     int port = 8888;
-    const char *send_buf = "nihao\r\n";
+    char buff[200] = "/bin/ls\r\n";
 
     struct sockaddr_in server_address;
     bzero( &server_address, sizeof( server_address ) );
@@ -394,20 +394,15 @@ void http_conn::send_to_mycgi()
     }
     else
     {
-       // printf( "send oob data out\n" );
-       // const char* oob_data = "abc";
-       // const char* normal_data = "123";
-       // send( sockfd, normal_data, strlen( normal_data ), 0 );
-       // send( sockfd, oob_data, strlen( oob_data ), MSG_OOB );
-       // send( sockfd, normal_data, strlen( normal_data ), 0 );
-        send (sockfd , send_buf, strlen(send_buf), 0);
+        /*向cgi服务器发送数据并获得返回数据*/
+        send (sockfd , buff, strlen(buff), 0);
+        memset(buff, '\0', sizeof(buff));
+        recv (sockfd, buff, sizeof(buff), 0);
+        printf("\n\n收到%s\n\n", buff);
     }
-    //memset(send_buf, '\0', sizeof(send_buf));
- //   read (sockfd, send_buf, sizeof(send_buf));
-
+    
     close( sockfd );
     return ;
-
 }
 
 void http_conn::unmap()
