@@ -19,6 +19,8 @@
 using namespace std;
 int main (int argc,char **argv)
 {
+
+	//从这样的的测试的出来的结论是
     cout << &argc<< " ";
     cout << argv;
 }
