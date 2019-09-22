@@ -24,5 +24,5 @@ int main()
     }else{
         printf("unknown\n");
     }
-
+//大段小端这一块一直感觉没有什么用  今天才感觉到的
 }
